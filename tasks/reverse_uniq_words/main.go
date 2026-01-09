@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
+	"sync"
 )
 
 type pair struct {
@@ -14,7 +16,7 @@ type pair struct {
 // генерит случайные слова из 5 букв
 // с помощью randomWord(5)
 func generate(cancel <-chan struct{}) <-chan string {
-	out := make(chan string)
+	out := make(chan string, 5)
 	go func() {
 		defer close(out)
 		for {
@@ -32,7 +34,7 @@ func generate(cancel <-chan struct{}) <-chan string {
 // abcde - подходит
 // abcda - не подходит
 func takeUnique(cancel <-chan struct{}, in <-chan string) <-chan string {
-	out := make(chan string)
+	out := make(chan string, 5)
 	go func() {
 		defer close(out)
 		for {
@@ -68,7 +70,7 @@ func takeUnique(cancel <-chan struct{}, in <-chan string) <-chan string {
 // переворачивает слова
 // abcde -> edcba
 func reverse(cancel <-chan struct{}, in <-chan string) <-chan pair {
-	out := make(chan pair)
+	out := make(chan pair, 5)
 	go func() {
 		defer close(out)
 		for {
@@ -88,22 +90,56 @@ func reverse(cancel <-chan struct{}, in <-chan string) <-chan pair {
 				}
 			}
 		}
-	}()1
+	}()
 	return out
 }
 
 // объединяет c1 и c2 в общий канал
-func merge(cancel <-chan, c1, c2 <-chan) <-chan {
-	out := make(chan)
+func merge(cancel <-chan struct{}, c1, c2 <-chan pair) <-chan pair {
+	out := make(chan pair, 5)
+	wg := sync.WaitGroup{}
+	wg.Go(func() {
+
+		for words := range c1 {
+			select {
+			case out <- words:
+			case <-cancel:
+				return
+			}
+		}
+	})
+	wg.Go(func() {
+		for words := range c2 {
+			select {
+			case out <- words:
+			case <-cancel:
+				return
+			}
+		}
+	})
+
 	go func() {
-		// ...
+		wg.Wait()
+		close(out)
 	}()
 	return out
 }
 
 // печатает первые n результатов
-func print(cancel <-chan, in <-chan, n int) {
-	// ...
+func print(cancel <-chan struct{}, in <-chan pair, n int) {
+	go func() {
+		for i := 0; i < n; i++ {
+			select {
+			case word, ok := <-in:
+				if !ok {
+					return
+				}
+				fmt.Println(word.word, word.reversedWord)
+			case <-cancel:
+				return
+			}
+		}
+	}()
 }
 
 // конец решения
