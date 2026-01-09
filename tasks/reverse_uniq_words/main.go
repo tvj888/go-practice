@@ -70,7 +70,7 @@ func takeUnique(cancel <-chan struct{}, in <-chan string) <-chan string {
 // переворачивает слова
 // abcde -> edcba
 func reverse(cancel <-chan struct{}, in <-chan string) <-chan pair {
-	out := make(chan pair, 5)
+	out := make(chan pair)
 	go func() {
 		defer close(out)
 		for {
@@ -126,20 +126,35 @@ func merge(cancel <-chan struct{}, c1, c2 <-chan pair) <-chan pair {
 }
 
 // печатает первые n результатов
+//
+//	func print(cancel <-chan struct{}, in <-chan pair, n int) {
+//		go func() {
+//			for i := 0; i < n; i++ {
+//				select {
+//				case word, ok := <-in:
+//					if !ok {
+//						return
+//					}
+//					fmt.Println(word.word, word.reversedWord)
+//				case <-cancel:
+//					return
+//				}
+//			}
+//		}()
+//	}
+
 func print(cancel <-chan struct{}, in <-chan pair, n int) {
-	go func() {
-		for i := 0; i < n; i++ {
-			select {
-			case word, ok := <-in:
-				if !ok {
-					return
-				}
-				fmt.Println(word.word, word.reversedWord)
-			case <-cancel:
+	for i := 0; i < n; i++ {
+		select {
+		case word, ok := <-in:
+			if !ok {
 				return
 			}
+			fmt.Printf("%s -> %s\n", word.word, word.reversedWord)
+		case <-cancel:
+			return
 		}
-	}()
+	}
 }
 
 // конец решения
